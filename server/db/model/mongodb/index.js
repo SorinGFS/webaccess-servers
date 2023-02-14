@@ -23,7 +23,7 @@ class Model extends DB {
         return this._chain(this._exec, ...args);
     }
     _exec(fn, ...args) {
-        this[fn].apply(this, args);
+        this[fn].call(this, ...args);
     }
     returnArg(...args) {
         return this._chain(this._returnArg, ...args);
@@ -331,7 +331,7 @@ class Model extends DB {
         return await this._db._collection.deleteMany({ ...filter }, { ...options });
     }
     _chain(fn, ...args) {
-        this.p = this.p.then(() => fn.apply(this, args));
+        this.p = this.p.then(() => fn.call(this, ...args));
         return this;
     }
     then(a, b) {
