@@ -87,7 +87,7 @@ module.exports = (serverConfigs) => {
             }
             return [{ auth: auth }];
         }
-        fn.parseDeepKey(config.server, 'auth', setAuth);
+        fn.assignDeepKey(config.server, 'auth', setAuth);
         // auth configuration not allowed at location level except auth.mode and only if switches the main setting
         function locationAuthCleanup(auth) {
             let putItBack;
@@ -99,7 +99,7 @@ module.exports = (serverConfigs) => {
             if (putItBack !== undefined) auth.mode = putItBack;
             return [{ auth: auth }];
         }
-        if (config.server.locations) fn.parseDeepKey(config.server.locations, 'auth', locationAuthCleanup);
+        if (config.server.locations) fn.assignDeepKey(config.server.locations, 'auth', locationAuthCleanup);
         // add prepared server
         preparedServers.push({ serverName: config.serverName, server: config.server });
     });

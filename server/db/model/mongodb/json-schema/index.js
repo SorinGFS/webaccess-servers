@@ -146,7 +146,7 @@ const deserialize = (data) => {
         return [];
     };
     types.forEach((type) => {
-        fn.parseDeepKeyParent(data, type, parser);
+        fn.assignDeepKeyParent(data, type, parser);
     });
     return data;
 };
