@@ -79,34 +79,75 @@ const jsonSchemaToBsonSchema = (jsonSchemaType, bsonTypeName) => {
     return [jsonSchemaType];
 };
 
+//  should return a schema or undefined (moved here from zerodep for refactoring of this file and related functions)
+const getKeySchema = (data, key, schema) => {
+    if (!key || typeof key !== 'string' || typeof schema !== 'object') return undefined;
+    if (key.indexOf('.') !== -1) return getDotNotationKeySchema(key, schema);
+    if (!Array.isArray(data)) {
+        if (schema.properties && schema.properties[key]) {
+            return schema.properties[key];
+        } else {
+            return undefined;
+        }
+    } else {
+        if (schema.items) {
+            return schema.items;
+        } else {
+            return undefined;
+        }
+    }
+};
+
+// should return a schema or undefined
+const getDotNotationKeySchema = (key, schema) => {
+    if (!key || typeof key !== 'string' || typeof schema !== 'object') return undefined;
+    return key.split('.').reduce((matchingSchema, key) => {
+        if (matchingSchema) {
+            if (!this.isNumeric(key)) {
+                if (matchingSchema.properties && matchingSchema.properties[key]) {
+                    return matchingSchema.properties[key];
+                } else {
+                    return undefined;
+                }
+            } else {
+                if (matchingSchema.items) {
+                    return matchingSchema.items;
+                } else {
+                    return undefined;
+                }
+            }
+        }
+    }, schema);
+};
+
 // keys may be normal keys, numeric keys, dot notation keys, operators (top, mid, or low level)
 // the goal is to reach to the value only for appliable cases
-const parseDeepSchema = (data, schema, parse) => {
+const parseDeepSchema = (schema, parser, data) => {
     if (data && schema && typeof data === 'object') {
         // the important thing is that parent is object, parsed key must be a value having a schema
         Object.keys(data).forEach((key) => {
             if (isTopLevelKey(key)) {
                 // each element inside these keys corresponds to the whole schema
                 for (let i = 0; i < data[key].length; i++) {
-                    parseDeepSchema(data[key][i], schema, parse);
+                    parseDeepSchema(schema, parser, data[key][i]);
                 }
             } else if (typeof data[key] === 'object') {
-                if (fn.getKeySchema(data, key, schema)) {
+                if (getKeySchema(data, key, schema)) {
                     if (!Array.isArray(data)) {
-                        parseDeepSchema(data[key], fn.getKeySchema(data, key, schema), parse);
+                        parseDeepSchema(getKeySchema(data, key, schema), parser, data[key]);
                     } else {
-                        parseDeepSchema(data[key], schema, parse);
+                        parseDeepSchema(schema, parser, data[key]);
                     }
                 } else if (!isDeniedTypeConversionMidLevelKey(key)) {
                     // short circuiting mid level variable keys by passing the given schema to lower level
                     // deny opertors not related to field data type
-                    parseDeepSchema(data[key], schema, parse);
+                    parseDeepSchema(schema, parser, data[key]);
                 }
             } else {
-                if (fn.getKeySchema(data, key, schema)) {
-                    data[key] = parse(data[key], fn.getKeySchema(data, key, schema));
+                if (getKeySchema(data, key, schema)) {
+                    data[key] = parser(data[key], getKeySchema(data, key, schema));
                 } else if (isAllowedTypeConversionLowLevelKey(key)) {
-                    data[key] = parse(data[key], schema);
+                    data[key] = parser(data[key], schema);
                 }
             }
         });
@@ -127,26 +168,26 @@ const serialize = (data, schema) => {
             // rare case when operations contain many unnamed stages
             if (Array.isArray(item)) {
                 item.forEach((subItem) => {
-                    parseDeepSchema(subItem, schema, parser);
+                    parseDeepSchema(schema, parser, subItem);
                 });
             } else {
-                parseDeepSchema(item, schema, parser);
+                parseDeepSchema(schema, parser, item);
             }
         });
     } else {
-        parseDeepSchema(data, schema, parser);
+        parseDeepSchema(schema, parser, data);
     }
 };
 
 // data may have the following forms: object. Make this function available in frontend!
 const deserialize = (data) => {
     const types = ['$numberDecimal'];
-    const parser = (parent, key) => {
-        if (parent[key].$numberDecimal) return [{ [key]: bsonToJson(parent[key].$numberDecimal, bsonSchemaToJsonSchema('decimal')[0].type) }];
+    const parser = (target, parentKey, key) => {
+        if (key === '$numberDecimal') return { [parentKey]: bsonToJson(target[key], bsonSchemaToJsonSchema('decimal')[0].type) };
         return [];
     };
     types.forEach((type) => {
-        fn.assignDeepKeyParent(data, type, parser);
+        fn.replaceDeepKeyParent(type, parser, data);
     });
     return data;
 };
